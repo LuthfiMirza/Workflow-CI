@@ -1,0 +1,64 @@
+name: mlflow-project-ci
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  mlflow-run:
+    runs-on: ubuntu-latest
+    env:
+      ENABLE_DOCKER: "false"  # ubah ke "true" jika ingin build & push Docker image
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mlflow==2.19.0 scikit-learn pandas numpy matplotlib
+
+      - name: Run MLflow Project
+        working-directory: ./Workflow-CI
+        run: |
+          mlflow run MLProject -e main \
+            -P data_path=MLProject/namadataset_preprocessing/data_preprocessed.csv \
+            -P n_estimators=80
+
+      - name: Upload mlruns artifact (skilled)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlruns-output
+          path: Workflow-CI/mlruns
+          if-no-files-found: warn
+
+      - name: Capture latest run id
+        id: capture-run
+        run: |
+          RUN_ID=$(python - <<'PY'
+import pathlib
+mlruns_path = pathlib.Path("Workflow-CI/mlruns")
+runs = sorted(mlruns_path.glob("*/[0-9]*/meta.yaml"), key=lambda p: p.stat().st_mtime, reverse=True)
+print(runs[0].parent.name if runs else "")
+PY
+          )
+          echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      # Advanced: build & push Docker image ke Docker Hub
+      - name: Build and push Docker image
+        if: ${{ env.ENABLE_DOCKER == 'true' && steps.capture-run.outputs.run_id != '' }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}  # isi di repo secrets
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}        # isi di repo secrets
+          MODEL_URI: runs:/${{ steps.capture-run.outputs.run_id }}/model
+        run: |
+          echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+          mlflow models build-docker -m "${MODEL_URI}" -n "${DOCKERHUB_USERNAME}/msml-model:latest"
+          docker push "${DOCKERHUB_USERNAME}/msml-model:latest"
