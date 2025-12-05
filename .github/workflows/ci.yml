@@ -25,7 +25,6 @@ jobs:
           pip install mlflow==2.19.0 scikit-learn pandas numpy matplotlib
 
       - name: Run MLflow Project
-        working-directory: ./Workflow-CI
         run: |
           mlflow run MLProject -e main \
             -P data_path=MLProject/namadataset_preprocessing/data_preprocessed.csv \
@@ -36,7 +35,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mlruns-output
-          path: Workflow-CI/mlruns
+          path: mlruns
           if-no-files-found: warn
 
       - name: Capture latest run id
@@ -44,7 +43,7 @@ jobs:
         run: |
           RUN_ID=$(python - <<'PY'
 import pathlib
-mlruns_path = pathlib.Path("Workflow-CI/mlruns")
+mlruns_path = pathlib.Path("mlruns")
 runs = sorted(mlruns_path.glob("*/[0-9]*/meta.yaml"), key=lambda p: p.stat().st_mtime, reverse=True)
 print(runs[0].parent.name if runs else "")
 PY
