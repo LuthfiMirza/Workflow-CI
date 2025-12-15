@@ -106,7 +106,7 @@ jobs:
           git push origin "${ARTIFACTS_BRANCH}"
 
       - name: Build and push Docker image (Advanced, optional)
-        if: env.ENABLE_DOCKER == 'true' && steps.capture-run.outputs.run_id != '' && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
+        if: ${{ env.ENABLE_DOCKER == 'true' && steps.capture-run.outputs.run_id != '' && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
