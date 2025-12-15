@@ -59,6 +59,7 @@ jobs:
       - name: Run MLflow Project (local env)
         env:
           MLRUNS_DIR: ${{ github.workspace }}/outputs/mlruns
+          MLFLOW_TRACKING_URI: file://${{ github.workspace }}/outputs/mlruns
         run: |
           mlflow run MLProject -e main \
             --env-manager local \
