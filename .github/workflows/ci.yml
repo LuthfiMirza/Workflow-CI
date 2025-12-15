@@ -106,12 +106,16 @@ jobs:
           git push origin "${ARTIFACTS_BRANCH}"
 
       - name: Build and push Docker image (Advanced, optional)
-        if: ${{ env.ENABLE_DOCKER == 'true' && steps.capture_run.outputs.run_id != '' && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ env.ENABLE_DOCKER == 'true' && steps.capture_run.outputs.run_id != '' }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           MODEL_URI: runs:/${{ steps.capture_run.outputs.run_id }}/model
         run: |
+          if [ -z "${DOCKERHUB_USERNAME}" ] || [ -z "${DOCKERHUB_TOKEN}" ]; then
+            echo "DockerHub secrets not set; skipping Docker build."
+            exit 0
+          fi
           echo "Building Docker image for ${MODEL_URI}"
           echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
           mlflow models build-docker -m "${MODEL_URI}" -n "${DOCKERHUB_USERNAME}/msml-model:latest"
