@@ -1,6 +1,0 @@
-artifact_location: file:///home/runner/work/Workflow-CI/Workflow-CI/outputs/mlruns/402357562804591347
-creation_time: 1765799922295
-experiment_id: '402357562804591347'
-last_update_time: 1765799922295
-lifecycle_stage: active
-name: workflow-ci-training
