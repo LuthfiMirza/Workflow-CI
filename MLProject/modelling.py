@@ -6,6 +6,7 @@ Menerima argumen CLI (data_path, n_estimators) dan melog manual ke MLflow.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import mlflow
@@ -59,7 +60,10 @@ def run_training(data_path: str, n_estimators: int) -> None:
         stratify=stratify_param,
     )
 
-    mlflow.set_tracking_uri("file://" + str(Path.cwd() / "mlruns"))
+    mlruns_dir_env = os.environ.get("MLRUNS_DIR")
+    mlruns_dir = Path(mlruns_dir_env) if mlruns_dir_env else Path.cwd() / "mlruns"
+    mlruns_dir.mkdir(parents=True, exist_ok=True)
+    mlflow.set_tracking_uri("file://" + str(mlruns_dir.resolve()))
     mlflow.set_experiment("workflow-ci-training")
 
     model = RandomForestClassifier(

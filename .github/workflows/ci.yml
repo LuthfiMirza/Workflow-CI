@@ -2,62 +2,127 @@ name: mlflow-project-ci
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
+    inputs:
+      enable_docker:
+        description: "Build & push Docker image (requires DockerHub secrets)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
 
 jobs:
   mlflow-run:
+    if: github.ref != 'refs/heads/artifacts' # safety so artifacts branch push doesn't retrigger
     runs-on: ubuntu-latest
     env:
-      ENABLE_DOCKER: "false"  # ubah ke "true" jika ingin build & push Docker image
+      ENABLE_DOCKER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_docker == 'true' && 'true' || 'false' }}
+      DATA_PATH: namadataset_preprocessing/data_preprocessed.csv
+      ARTIFACTS_BRANCH: artifacts
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate dataset path exists
+        run: |
+          FULL_PATH="MLProject/${DATA_PATH}"
+          if [ ! -f "$FULL_PATH" ] && [ ! -d "$FULL_PATH" ]; then
+            echo "::error::Dataset not found at $FULL_PATH"
+            exit 1
+          fi
+          echo "Using dataset path: ${FULL_PATH}"
 
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install dependencies (pip)
         run: |
           python -m pip install --upgrade pip
           pip install mlflow==2.19.0 scikit-learn pandas numpy matplotlib
 
-      - name: Run MLflow Project
+      # Uncomment if you prefer conda env instead of pip
+      # - name: Setup Miniconda
+      #   uses: conda-incubator/setup-miniconda@v3
+      #   with:
+      #     activate-environment: workflow-ci-env
+      #     environment-file: MLProject/conda.yaml
+      #     miniforge-variant: Mambaforge
+
+      - name: Run MLflow Project (local env)
+        env:
+          MLRUNS_DIR: ${{ github.workspace }}/outputs/mlruns
         run: |
           mlflow run MLProject -e main \
-            -P data_path=MLProject/namadataset_preprocessing/data_preprocessed.csv \
+            --env-manager local \
+            -P data_path="${DATA_PATH}" \
             -P n_estimators=80
-
-      - name: Upload mlruns artifact (skilled)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mlruns-output
-          path: mlruns
-          if-no-files-found: warn
 
       - name: Capture latest run id
         id: capture-run
+        env:
+          MLRUNS_DIR: ${{ github.workspace }}/outputs/mlruns
         run: |
           RUN_ID=$(python - <<'PY'
+import os
 import pathlib
-mlruns_path = pathlib.Path("mlruns")
+mlruns_path = pathlib.Path(os.environ["MLRUNS_DIR"])
+if not mlruns_path.exists():
+    print("")
+    raise SystemExit
 runs = sorted(mlruns_path.glob("*/[0-9]*/meta.yaml"), key=lambda p: p.stat().st_mtime, reverse=True)
 print(runs[0].parent.name if runs else "")
 PY
           )
           echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "Captured run id: ${RUN_ID}"
 
-      # Advanced: build & push Docker image ke Docker Hub
-      - name: Build and push Docker image
-        if: ${{ env.ENABLE_DOCKER == 'true' && steps.capture-run.outputs.run_id != '' }}
+      - name: Persist mlruns to artifacts branch (Skilled)
+        if: always()
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}  # isi di repo secrets
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}        # isi di repo secrets
+          ARTIFACTS_BRANCH: ${{ env.ARTIFACTS_BRANCH }}
+          MLRUNS_DIR: ${{ github.workspace }}/outputs/mlruns
+        run: |
+          if [ ! -d "${MLRUNS_DIR}" ]; then
+            echo "No mlruns directory to persist."
+            exit 0
+          fi
+          tar -czf /tmp/mlruns.tgz -C "${MLRUNS_DIR}" .
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git fetch origin "${ARTIFACTS_BRANCH}" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/${ARTIFACTS_BRANCH}"; then
+            git checkout -B "${ARTIFACTS_BRANCH}" "origin/${ARTIFACTS_BRANCH}"
+          else
+            git checkout --orphan "${ARTIFACTS_BRANCH}"
+          fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          mkdir -p artifacts/mlruns
+          tar -xzf /tmp/mlruns.tgz -C artifacts/mlruns
+          touch artifacts/.gitkeep
+          git add artifacts
+          if git diff --cached --quiet; then
+            echo "No new artifacts to commit."
+            exit 0
+          fi
+          git commit -m "CI: store mlruns $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          git push origin "${ARTIFACTS_BRANCH}"
+
+      - name: Build and push Docker image (Advanced, optional)
+        if: env.ENABLE_DOCKER == 'true' && steps.capture-run.outputs.run_id != '' && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           MODEL_URI: runs:/${{ steps.capture-run.outputs.run_id }}/model
         run: |
+          echo "Building Docker image for ${MODEL_URI}"
           echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
           mlflow models build-docker -m "${MODEL_URI}" -n "${DOCKERHUB_USERNAME}/msml-model:latest"
           docker push "${DOCKERHUB_USERNAME}/msml-model:latest"
