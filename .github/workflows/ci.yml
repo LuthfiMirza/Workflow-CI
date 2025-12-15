@@ -70,17 +70,7 @@ jobs:
         env:
           MLRUNS_DIR: ${{ github.workspace }}/outputs/mlruns
         run: |
-          RUN_ID=$(python - <<'PY'
-          import os
-          import pathlib
-          mlruns_path = pathlib.Path(os.environ["MLRUNS_DIR"])
-          if not mlruns_path.exists():
-              print("")
-              raise SystemExit
-          runs = sorted(mlruns_path.glob("*/[0-9]*/meta.yaml"), key=lambda p: p.stat().st_mtime, reverse=True)
-          print(runs[0].parent.name if runs else "")
-          PY
-          )
+          RUN_ID=$(python -c $'import os, pathlib, sys\nmlruns_path = pathlib.Path(os.environ.get(\"MLRUNS_DIR\", \"\"))\nif not mlruns_path.exists(): sys.exit(0)\nruns = sorted(mlruns_path.glob(\"*/[0-9]*/meta.yaml\"), key=lambda p: p.stat().st_mtime, reverse=True)\nprint(runs[0].parent.name if runs else \"\")')
           echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
           echo "Captured run id: ${RUN_ID}"
 
