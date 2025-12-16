@@ -1,6 +1,6 @@
 artifact_location: file:///home/runner/work/Workflow-CI/Workflow-CI/outputs/mlruns/0
-creation_time: 1765864297486
+creation_time: 1765864550607
 experiment_id: '0'
-last_update_time: 1765864297486
+last_update_time: 1765864550607
 lifecycle_stage: active
 name: Default
