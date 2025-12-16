@@ -76,8 +76,9 @@ def run_training(data_path: str, n_estimators: int) -> None:
         n_estimators=n_estimators, random_state=42, n_jobs=-1
     )
 
-    # Always use nested run to play nicely with mlflow run parent context
-    with mlflow.start_run(run_name="ci-random-forest", nested=True) as run:
+    # Hapus MLFLOW_RUN_ID dari env untuk menghindari bentrok run parent dari `mlflow run`
+    os.environ.pop("MLFLOW_RUN_ID", None)
+    with mlflow.start_run(run_name="ci-random-forest") as run:
         mlflow.log_param("n_estimators", n_estimators)
         model.fit(X_train, y_train)
 
