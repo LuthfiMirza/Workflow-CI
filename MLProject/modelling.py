@@ -76,14 +76,8 @@ def run_training(data_path: str, n_estimators: int) -> None:
         n_estimators=n_estimators, random_state=42, n_jobs=-1
     )
 
-    active_run = mlflow.active_run()
-    run_context = (
-        mlflow.start_run(run_name="ci-random-forest", nested=True)
-        if active_run
-        else mlflow.start_run(run_name="ci-random-forest")
-    )
-
-    with run_context as run:
+    # Always use nested run to play nicely with mlflow run parent context
+    with mlflow.start_run(run_name="ci-random-forest", nested=True) as run:
         mlflow.log_param("n_estimators", n_estimators)
         model.fit(X_train, y_train)
 
