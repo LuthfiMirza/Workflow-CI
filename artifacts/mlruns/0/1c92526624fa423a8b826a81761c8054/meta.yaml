@@ -1,0 +1,15 @@
+artifact_uri: file:///home/runner/work/Workflow-CI/Workflow-CI/outputs/mlruns/0/1c92526624fa423a8b826a81761c8054/artifacts
+end_time: 1765864300767
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 1c92526624fa423a8b826a81761c8054
+run_name: defiant-kit-894
+run_uuid: 1c92526624fa423a8b826a81761c8054
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1765864297486
+status: 4
+tags: []
+user_id: runner
